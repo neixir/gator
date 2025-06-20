@@ -2,6 +2,7 @@ package main
 
 // CH1 L3 https://www.boot.dev/lessons/dca1352a-7600-4d1d-bfdf-f9d741282e55
 // CH2 L3 https://www.boot.dev/lessons/8279802c-a867-4ba6-9d06-25625bc42544
+// CH2 L4 https://www.boot.dev/lessons/6619ebf8-44ab-4a2b-a536-0b17d116c15e
 
 import (
 	"context"
@@ -56,10 +57,6 @@ func (c *commands) register(name string, f func(*state, command) error) {
 	c.callback[name] = f
 }
 
-// This will be the function signature of all command handlers.
-// func handlerDefault(s *state, cmd command) error {
-// }
-
 // CH1 L3
 func handlerLogin(s *state, cmd command) error {
 	if len(cmd.args) == 0 {
@@ -77,10 +74,10 @@ func handlerLogin(s *state, cmd command) error {
 
 	err = s.cfg.SetUser(username)
 	if err != nil {
-		return fmt.Errorf("error setting user: %v", err)
+		return err
 	}
 
-	fmt.Printf("User %s set\n", username)
+	fmt.Printf("User %s set.\n", username)
 
 	return nil
 }
@@ -107,21 +104,38 @@ func handlerRegister(s *state, cmd command) error {
 	if err != nil {
 		// Exit with code 1 if a user with that name already exists.
 		// TODO Potser millor abans de crear fer GetUser?
-		return fmt.Errorf("error creating user: %v", err)
+		return fmt.Errorf("creating user. %v", err)
 	}
 
 	// Set the current user in the config to the given name.
 	err = s.cfg.SetUser(username)
 	if err != nil {
-		return fmt.Errorf("error setting user: %v", err)
+		return fmt.Errorf("setting user. %v", err)
 	}
 	
 	// Print a message that the user was created, and log the user's data to the console for your own debugging.
-	fmt.Printf("Created new user %s\n", username)
+	fmt.Printf("Created new user %s.\n", username)
 	fmt.Println(newUser)
 	
 	return nil
 }
+
+
+// CH2 L4
+func handlerReset(s *state, cmd command) error {
+	err := s.db.DeleteAllUsers(context.Background())
+	if err != nil {
+		return fmt.Errorf("resetting users table. %v", err)
+	}
+	
+	fmt.Println("Users table has been reset.")
+	return nil
+}
+
+// This will be the function signature of all command handlers.
+// func handlerDefault(s *state, cmd command) error {
+// }
+
 
 func main() {
 	status := state{}
@@ -151,6 +165,7 @@ func main() {
 	// CH1 L3 Register a handler function for the login command.
 	listOfCommands.register("login", handlerLogin)
 	listOfCommands.register("register", handlerRegister)
+	listOfCommands.register("reset", handlerReset)
 
 	// CH1 L3 Use os.Args to get the command-line arguments passed in by the user.
 	if len(os.Args) < 2 {
