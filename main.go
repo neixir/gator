@@ -1,15 +1,26 @@
 package main
 
 // CH1 L3 https://www.boot.dev/lessons/dca1352a-7600-4d1d-bfdf-f9d741282e55
+// CH2 L3 https://www.boot.dev/lessons/8279802c-a867-4ba6-9d06-25625bc42544
 
 import (
+	"context"
+	"database/sql"
 	"fmt"
 	"os"
+	"time"
+
+	"github.com/google/uuid"
+
 	"github.com/neixir/gator/internal/config"
+	"github.com/neixir/gator/internal/database"
 )
 
+import _ "github.com/lib/pq"
+
 type state struct {
-	config *config.Config
+	db  *database.Queries
+	cfg *config.Config
 }
 
 // CH1 L3
@@ -56,13 +67,59 @@ func handlerLogin(s *state, cmd command) error {
 	}
 
 	username := cmd.args[0]
-	err := s.config.SetUser(username)
+
+	// CH2 L3
+	// Update the login command handler to error (and exit with code 1) if the given username doesn't exist in the database.
+	_, err := s.db.GetUser(context.Background(), username)
+	if err != nil {
+		return fmt.Errorf("the user does not exist. %v", err)
+	}
+
+	err = s.cfg.SetUser(username)
 	if err != nil {
 		return fmt.Errorf("error setting user: %v", err)
 	}
 
-	fmt.Printf("User %s set", username)
+	fmt.Printf("User %s set\n", username)
 
+	return nil
+}
+
+// CH2 L3
+func handlerRegister(s *state, cmd command) error {
+	// Ensure that a name was passed in the args.
+	if len(cmd.args) == 0 {
+		return fmt.Errorf("missing argument <username>")
+	}
+
+	username := cmd.args[0]
+
+	// Create a new user in the database.
+	// It should have access to the CreateUser query through the state -> db struct.
+	arg := database.CreateUserParams{
+		ID: uuid.New(),				// Use the uuid.New() function to generate a new UUID for the user.
+		CreatedAt: time.Now(),		// created_at and updated_at should be the current time.
+		UpdatedAt: time.Now(),
+		Name: username,				// Use the provided name.
+	}
+	// Pass context.Background() to the query to create an empty Context argument.
+	newUser, err := s.db.CreateUser(context.Background(), arg)
+	if err != nil {
+		// Exit with code 1 if a user with that name already exists.
+		// TODO Potser millor abans de crear fer GetUser?
+		return fmt.Errorf("error creating user: %v", err)
+	}
+
+	// Set the current user in the config to the given name.
+	err = s.cfg.SetUser(username)
+	if err != nil {
+		return fmt.Errorf("error setting user: %v", err)
+	}
+	
+	// Print a message that the user was created, and log the user's data to the console for your own debugging.
+	fmt.Printf("Created new user %s\n", username)
+	fmt.Println(newUser)
+	
 	return nil
 }
 
@@ -76,8 +133,16 @@ func main() {
 		fmt.Println("Error reading config file: %v", err)
 	}
 
-	status.config = &cfg
+	status.cfg = &cfg
 	
+
+	// CH2 L3
+	dbURL := status.cfg.DbUrl
+	db, err := sql.Open("postgres", dbURL)
+	dbQueries := database.New(db)
+	status.db = dbQueries 
+
+
 	// CH1 L3 Create a new instance of the commands struct with an initialized map of handler functions.
 	listOfCommands := commands{
 		callback: make(map[string]func(*state, command) error),
@@ -85,6 +150,7 @@ func main() {
 	
 	// CH1 L3 Register a handler function for the login command.
 	listOfCommands.register("login", handlerLogin)
+	listOfCommands.register("register", handlerRegister)
 
 	// CH1 L3 Use os.Args to get the command-line arguments passed in by the user.
 	if len(os.Args) < 2 {
@@ -103,4 +169,5 @@ func main() {
 		fmt.Printf("Error running command: %v\n", err)
 		os.Exit(1)
 	}
+
 }
