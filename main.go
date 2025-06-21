@@ -4,6 +4,7 @@ package main
 // CH2 L3 https://www.boot.dev/lessons/8279802c-a867-4ba6-9d06-25625bc42544
 // CH2 L4 https://www.boot.dev/lessons/6619ebf8-44ab-4a2b-a536-0b17d116c15e
 // CH2 L5 https://www.boot.dev/lessons/371be77c-711d-4072-8392-81732ed87512
+// CH3 L1 https://www.boot.dev/lessons/7347666d-7967-4c77-84c5-a0306bee8d05
 
 import (
 	"context"
@@ -16,6 +17,7 @@ import (
 
 	"github.com/neixir/gator/internal/config"
 	"github.com/neixir/gator/internal/database"
+	"github.com/neixir/gator/internal/rss"
 )
 
 import _ "github.com/lib/pq"
@@ -150,6 +152,27 @@ func handlerUsers(s *state, cmd command) error {
 	return nil
 }
 
+// CH3 L1
+// Later this will be our long-running aggregator service. For now, we'll just use it to fetch
+// a single feed and ensure our parsing works. It should fetch the feed found at
+// https://www.wagslane.dev/index.xml and print the entire struct to the console.
+func handlerAgg(s *state, cmd command) error {
+	feed, err := rss.FetchFeed("https://www.wagslane.dev/index.xml")
+	if err != nil {
+		return err
+	}
+
+	/*
+	fmt.Println(feed.Channel.Title)
+	for i, item := range feed.Channel.Item {
+		fmt.Printf("%02d %v\n", i, item.Title)
+	}
+	*/
+	fmt.Println(feed)
+
+	return nil	
+}
+
 // This will be the function signature of all command handlers.
 // func handlerDefault(s *state, cmd command) error {
 // }
@@ -182,6 +205,7 @@ func main() {
 	listOfCommands.register("register", handlerRegister)
 	listOfCommands.register("reset", handlerReset)
 	listOfCommands.register("users", handlerUsers)
+	listOfCommands.register("agg", handlerAgg)				// CH3 L1
 
 	// CH1 L3 Use os.Args to get the command-line arguments passed in by the user.
 	if len(os.Args) < 2 {
