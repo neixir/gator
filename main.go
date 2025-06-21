@@ -5,6 +5,7 @@ package main
 // CH2 L4 https://www.boot.dev/lessons/6619ebf8-44ab-4a2b-a536-0b17d116c15e
 // CH2 L5 https://www.boot.dev/lessons/371be77c-711d-4072-8392-81732ed87512
 // CH3 L1 https://www.boot.dev/lessons/7347666d-7967-4c77-84c5-a0306bee8d05
+// CH3 L2 https://www.boot.dev/lessons/f0126e90-414e-4a45-b6b6-758d59af012c
 
 import (
 	"context"
@@ -46,12 +47,18 @@ type commands struct {
 // CH1 L3
 // This method runs a given command with the provided state if it exists.
 func (c *commands) run(s *state, cmd command) error {
-	err := c.callback[cmd.name](s, cmd)
-	if err != nil {
-		return err
-	}
+	_, ok := c.callback[cmd.name]
+	if ok {
+		err := c.callback[cmd.name](s, cmd)
+		if err != nil {
+			return err
+		}
 
-	return nil
+		return nil
+	}
+	
+	return fmt.Errorf("command not found")
+
 }
 
 // CH1 L3
@@ -173,6 +180,45 @@ func handlerAgg(s *state, cmd command) error {
 	return nil	
 }
 
+//CH3 L2
+func handlerAddfeed(s *state, cmd command) error {
+	if len(cmd.args) < 2 {
+		return fmt.Errorf("missing arguments <name> <url>")
+	}
+
+	// Obtenim nom i url del feed dels arguments
+	name := cmd.args[0]
+	url := cmd.args[1]
+	
+	// Obtenim l'usuari segons el que haguem obtingut del fitxer de configuracio
+	user, err := s.db.GetUser(context.Background(), s.cfg.CurrentUserName)
+	if err != nil {
+		return fmt.Errorf("the user does not exist. %v", err)
+	}
+
+	// user_id, err := user.UserID
+
+	arg := database.CreateFeedParams{
+		ID: uuid.New(),
+		CreatedAt: time.Now(),
+		UpdatedAt: time.Now(),
+		Name: name,
+		Url: url,
+		UserID: user.ID,
+	}
+
+	// Pass context.Background() to the query to create an empty Context argument.
+	newFeed, err := s.db.CreateFeed(context.Background(), arg)
+	if err != nil {
+		return fmt.Errorf("creating feed. %v", err)
+	}
+
+	fmt.Println("Created new feed.")
+	fmt.Println(newFeed)
+	
+	return nil
+}
+
 // This will be the function signature of all command handlers.
 // func handlerDefault(s *state, cmd command) error {
 // }
@@ -206,6 +252,7 @@ func main() {
 	listOfCommands.register("reset", handlerReset)
 	listOfCommands.register("users", handlerUsers)
 	listOfCommands.register("agg", handlerAgg)				// CH3 L1
+	listOfCommands.register("addfeed", handlerAddfeed)		// CH3 L2
 
 	// CH1 L3 Use os.Args to get the command-line arguments passed in by the user.
 	if len(os.Args) < 2 {

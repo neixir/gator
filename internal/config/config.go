@@ -29,7 +29,7 @@ func Read() (Config, error) {
 
 	data, err := os.ReadFile(configFile)
 	if err != nil {
-		return config, fmt.Errorf("Error rading file: %v", err)
+		return config, err
 	}
 
 	var currentConfig Config
