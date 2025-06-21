@@ -3,6 +3,7 @@ package main
 // CH1 L3 https://www.boot.dev/lessons/dca1352a-7600-4d1d-bfdf-f9d741282e55
 // CH2 L3 https://www.boot.dev/lessons/8279802c-a867-4ba6-9d06-25625bc42544
 // CH2 L4 https://www.boot.dev/lessons/6619ebf8-44ab-4a2b-a536-0b17d116c15e
+// CH2 L5 https://www.boot.dev/lessons/371be77c-711d-4072-8392-81732ed87512
 
 import (
 	"context"
@@ -120,7 +121,6 @@ func handlerRegister(s *state, cmd command) error {
 	return nil
 }
 
-
 // CH2 L4
 func handlerReset(s *state, cmd command) error {
 	err := s.db.DeleteAllUsers(context.Background())
@@ -132,10 +132,27 @@ func handlerReset(s *state, cmd command) error {
 	return nil
 }
 
+// CH2 L5
+func handlerUsers(s *state, cmd command) error {
+	users, err := s.db.GetUsers(context.Background())
+	if err != nil {
+		return fmt.Errorf("getting user list. %v", err)
+	}
+	
+	for _, user := range users {
+		username := user.Name
+		if s.cfg.CurrentUserName == username {
+			username = fmt.Sprintf("%s (current)", username)
+		}
+		fmt.Printf("* %s\n", username)
+	}
+
+	return nil
+}
+
 // This will be the function signature of all command handlers.
 // func handlerDefault(s *state, cmd command) error {
 // }
-
 
 func main() {
 	status := state{}
@@ -148,7 +165,6 @@ func main() {
 	}
 
 	status.cfg = &cfg
-	
 
 	// CH2 L3
 	dbURL := status.cfg.DbUrl
@@ -156,16 +172,16 @@ func main() {
 	dbQueries := database.New(db)
 	status.db = dbQueries 
 
-
 	// CH1 L3 Create a new instance of the commands struct with an initialized map of handler functions.
 	listOfCommands := commands{
 		callback: make(map[string]func(*state, command) error),
 	}
 	
-	// CH1 L3 Register a handler function for the login command.
-	listOfCommands.register("login", handlerLogin)
+	//
+	listOfCommands.register("login", handlerLogin)			// CH1 L3
 	listOfCommands.register("register", handlerRegister)
 	listOfCommands.register("reset", handlerReset)
+	listOfCommands.register("users", handlerUsers)
 
 	// CH1 L3 Use os.Args to get the command-line arguments passed in by the user.
 	if len(os.Args) < 2 {
