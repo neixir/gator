@@ -183,7 +183,7 @@ func handlerAgg(s *state, cmd command) error {
 }
 
 //CH3 L2
-func handlerAddfeed(s *state, cmd command) error {
+func handlerAddfeed(s *state, cmd command, user database.User) error {
 	if len(cmd.args) < 2 {
 		return fmt.Errorf("missing arguments <name> <url>")
 	}
@@ -193,10 +193,12 @@ func handlerAddfeed(s *state, cmd command) error {
 	url := cmd.args[1]
 	
 	// Obtenim l'usuari segons el que haguem obtingut del fitxer de configuracio
+	/*
 	user, err := s.db.GetUser(context.Background(), s.cfg.CurrentUserName)
 	if err != nil {
 		return fmt.Errorf("the user does not exist. %v", err)
 	}
+	*/
 
 	arg := database.CreateFeedParams{
 		ID: uuid.New(),
@@ -327,6 +329,17 @@ func handlerFollowing(s *state, cmd command) error {
 // func handlerDefault(s *state, cmd command) error {
 // }
 
+func middlewareLoggedIn(handler func(s *state, cmd command, user database.User) error) func(*state, command) error {
+	return func(s *state, cmd command) error {
+		user, err := s.db.GetUser(context.Background(), s.cfg.CurrentUserName)
+		if err != nil {
+			return fmt.Errorf("the user does not exist. %v", err)
+		}
+
+		return handler(s, cmd, user)
+	}
+}
+
 func main() {
 	status := state{}
 	
@@ -349,14 +362,15 @@ func main() {
 	listOfCommands := commands{
 		callback: make(map[string]func(*state, command) error),
 	}
-	
+
 	//
 	listOfCommands.register("login", handlerLogin)			// CH1 L3
 	listOfCommands.register("register", handlerRegister)
 	listOfCommands.register("reset", handlerReset)
 	listOfCommands.register("users", handlerUsers)
 	listOfCommands.register("agg", handlerAgg)				// CH3 L1
-	listOfCommands.register("addfeed", handlerAddfeed)		// CH3 L2
+	// listOfCommands.register("addfeed", handlerAddfeed)		// CH3 L2
+	listOfCommands.register("addfeed", middlewareLoggedIn(handlerAddfeed))
 	listOfCommands.register("feeds", handlerFeeds)			// CH3 L3
 	listOfCommands.register("follow", handlerFollow)		// CH4 L1
 	listOfCommands.register("following", handlerFollowing)	// CH4 L1
