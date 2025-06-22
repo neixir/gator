@@ -8,6 +8,8 @@ package main
 // CH3 L2 https://www.boot.dev/lessons/f0126e90-414e-4a45-b6b6-758d59af012c
 // CH3 L3 https://www.boot.dev/lessons/3c66635a-cf05-471e-8ad8-ff3a80a6b177
 // CH4 L1 https://www.boot.dev/lessons/a5f72e6a-6af3-4568-9eb7-079a3809a46c
+// CH4 L2 https://www.boot.dev/lessons/dbc877bf-a777-416e-ac07-f6ca9559f48c
+// CH4 L3 https://www.boot.dev/lessons/b1eb06af-f46e-40c1-a64f-836248122bb0
 
 import (
 	"context"
@@ -286,7 +288,6 @@ func handlerFollow(s *state, cmd command, user database.User) error {
 
 	fmt.Println("Created new follow:")
 	fmt.Printf("* [%s] %s\n", user.Name, feed.Name)
-	// fmt.Println(newFeedFollows)
 	
 	return nil
 }
@@ -305,12 +306,43 @@ func handlerFollowing(s *state, cmd command, user database.User) error {
 	return nil
 }
 
+func handlerUnfollow(s *state, cmd command, user database.User) error {
+	if len(cmd.args) < 1 {
+		return fmt.Errorf("missing arguments <url>")
+	}
+
+	// Obtenim nom i url del feed dels arguments
+	url := cmd.args[0]
+	
+	// Obtenim el feed
+	feed, err := s.db.GetFeedByUrl(context.Background(), url)
+	if err != nil {
+		return fmt.Errorf("the feed does not exist. %v", err)
+	}
+
+	arg := database.DeleteFeedFollowParams{
+		UserID: user.ID,
+		FeedID: feed.ID,
+	}
+
+	// Si no el segueix sembla que no dona error
+	err = s.db.DeleteFeedFollow(context.Background(), arg)
+	if err != nil {
+		return fmt.Errorf("deleting feed_follows. %v", err)
+	}
+
+	fmt.Printf("User %s is not following \"%s\" anymore.\n", user.Name, feed.Name)
+
+	return nil
+}
+
 // This will be the function signature of all command handlers.
 // func handlerDefault(s *state, cmd command) error {
 // }
 // func handlerDefault(s *state, cmd command, user database.User) error {
 // }
 
+// CH4 L2
 // Obtenim l'usuari segons el que haguem obtingut del fitxer de configuracio
 func middlewareLoggedIn(handler func(s *state, cmd command, user database.User) error) func(*state, command) error {
 	return func(s *state, cmd command) error {
@@ -347,15 +379,16 @@ func main() {
 	}
 
 	//
-	listOfCommands.register("login", handlerLogin)			// CH1 L3
+	listOfCommands.register("login", handlerLogin)								// CH1 L3
 	listOfCommands.register("register", handlerRegister)
 	listOfCommands.register("reset", handlerReset)
 	listOfCommands.register("users", handlerUsers)
-	listOfCommands.register("agg", handlerAgg)				// CH3 L1
+	listOfCommands.register("agg", handlerAgg)									// CH3 L1
 	listOfCommands.register("addfeed", middlewareLoggedIn(handlerAddfeed))		// CH3 L2 + CH4 L2
 	listOfCommands.register("feeds", handlerFeeds)								// CH3 L3
 	listOfCommands.register("follow", middlewareLoggedIn(handlerFollow))		// CH4 L1 + CH4 L2
 	listOfCommands.register("following", middlewareLoggedIn(handlerFollowing))	// CH4 L1 + CH4 L2
+	listOfCommands.register("unfollow", middlewareLoggedIn(handlerUnfollow))	// CH4 L3
 
 	// CH1 L3 Use os.Args to get the command-line arguments passed in by the user.
 	if len(os.Args) < 2 {
