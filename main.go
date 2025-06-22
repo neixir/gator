@@ -6,6 +6,7 @@ package main
 // CH2 L5 https://www.boot.dev/lessons/371be77c-711d-4072-8392-81732ed87512
 // CH3 L1 https://www.boot.dev/lessons/7347666d-7967-4c77-84c5-a0306bee8d05
 // CH3 L2 https://www.boot.dev/lessons/f0126e90-414e-4a45-b6b6-758d59af012c
+// CH3 L3 https://www.boot.dev/lessons/3c66635a-cf05-471e-8ad8-ff3a80a6b177
 
 import (
 	"context"
@@ -219,6 +220,29 @@ func handlerAddfeed(s *state, cmd command) error {
 	return nil
 }
 
+func handlerFeeds(s *state, cmd command) error {
+	feeds, err := s.db.GetFeeds(context.Background())
+	if err != nil {
+		return fmt.Errorf("getting feed list. %v", err)
+	}
+	
+	for _, feed := range feeds {
+		// Obtenim User segons id
+		// TODO Pper anar be podriem crear un map fora d'aquest for
+		// amb id i nom dels usuaris, aixi no hauriem de fer un query cada vegada
+		username := "Unknown"
+		user, err := s.db.GetUserById(context.Background(), feed.UserID)
+		if err == nil {
+			username = user.Name
+		}
+
+		fmt.Printf("* %s, %s, %v\n", feed.Name, feed.Url, username)
+	}
+
+	return nil
+	
+}
+
 // This will be the function signature of all command handlers.
 // func handlerDefault(s *state, cmd command) error {
 // }
@@ -253,6 +277,7 @@ func main() {
 	listOfCommands.register("users", handlerUsers)
 	listOfCommands.register("agg", handlerAgg)				// CH3 L1
 	listOfCommands.register("addfeed", handlerAddfeed)		// CH3 L2
+	listOfCommands.register("feeds", handlerFeeds)			// CH3 L3
 
 	// CH1 L3 Use os.Args to get the command-line arguments passed in by the user.
 	if len(os.Args) < 2 {
