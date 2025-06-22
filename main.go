@@ -192,14 +192,6 @@ func handlerAddfeed(s *state, cmd command, user database.User) error {
 	name := cmd.args[0]
 	url := cmd.args[1]
 	
-	// Obtenim l'usuari segons el que haguem obtingut del fitxer de configuracio
-	/*
-	user, err := s.db.GetUser(context.Background(), s.cfg.CurrentUserName)
-	if err != nil {
-		return fmt.Errorf("the user does not exist. %v", err)
-	}
-	*/
-
 	arg := database.CreateFeedParams{
 		ID: uuid.New(),
 		CreatedAt: time.Now(),
@@ -265,7 +257,7 @@ func handlerFeeds(s *state, cmd command) error {
 // It takes a single url argument and creates a new feed follow record for the current user.
 // It should print the name of the feed and the current user once the record is created
 // (which the query we just made should support). You'll need a query to look up feeds by URL.
-func handlerFollow(s *state, cmd command) error {
+func handlerFollow(s *state, cmd command, user database.User) error {
 	if len(cmd.args) < 1 {
 		return fmt.Errorf("missing arguments <url>")
 	}
@@ -277,12 +269,6 @@ func handlerFollow(s *state, cmd command) error {
 	feed, err := s.db.GetFeedByUrl(context.Background(), url)
 	if err != nil {
 		return fmt.Errorf("the feed does not exist. %v", err)
-	}
-
-	// Obtenim l'usuari segons el que haguem obtingut del fitxer de configuracio
-	user, err := s.db.GetUser(context.Background(), s.cfg.CurrentUserName)
-	if err != nil {
-		return fmt.Errorf("the user does not exist. %v", err)
 	}
 
 	arg := database.CreateFeedFollowParams{
@@ -305,13 +291,7 @@ func handlerFollow(s *state, cmd command) error {
 	return nil
 }
 
-func handlerFollowing(s *state, cmd command) error {
-	// Obtenim l'usuari segons el que haguem obtingut del fitxer de configuracio
-	user, err := s.db.GetUser(context.Background(), s.cfg.CurrentUserName)
-	if err != nil {
-		return fmt.Errorf("the user does not exist. %v", err)
-	}
-
+func handlerFollowing(s *state, cmd command, user database.User) error {
 	following_feeds, err := s.db.GetFeedFollowsForUser(context.Background(), user.ID)
 	if err != nil {
 		return fmt.Errorf("getting following feeds for [%s] -- %v", user.Name, err)
@@ -328,7 +308,10 @@ func handlerFollowing(s *state, cmd command) error {
 // This will be the function signature of all command handlers.
 // func handlerDefault(s *state, cmd command) error {
 // }
+// func handlerDefault(s *state, cmd command, user database.User) error {
+// }
 
+// Obtenim l'usuari segons el que haguem obtingut del fitxer de configuracio
 func middlewareLoggedIn(handler func(s *state, cmd command, user database.User) error) func(*state, command) error {
 	return func(s *state, cmd command) error {
 		user, err := s.db.GetUser(context.Background(), s.cfg.CurrentUserName)
@@ -369,11 +352,10 @@ func main() {
 	listOfCommands.register("reset", handlerReset)
 	listOfCommands.register("users", handlerUsers)
 	listOfCommands.register("agg", handlerAgg)				// CH3 L1
-	// listOfCommands.register("addfeed", handlerAddfeed)		// CH3 L2
-	listOfCommands.register("addfeed", middlewareLoggedIn(handlerAddfeed))
-	listOfCommands.register("feeds", handlerFeeds)			// CH3 L3
-	listOfCommands.register("follow", handlerFollow)		// CH4 L1
-	listOfCommands.register("following", handlerFollowing)	// CH4 L1
+	listOfCommands.register("addfeed", middlewareLoggedIn(handlerAddfeed))		// CH3 L2 + CH4 L2
+	listOfCommands.register("feeds", handlerFeeds)								// CH3 L3
+	listOfCommands.register("follow", middlewareLoggedIn(handlerFollow))		// CH4 L1 + CH4 L2
+	listOfCommands.register("following", middlewareLoggedIn(handlerFollowing))	// CH4 L1 + CH4 L2
 
 	// CH1 L3 Use os.Args to get the command-line arguments passed in by the user.
 	if len(os.Args) < 2 {
