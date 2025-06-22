@@ -7,6 +7,7 @@ package main
 // CH3 L1 https://www.boot.dev/lessons/7347666d-7967-4c77-84c5-a0306bee8d05
 // CH3 L2 https://www.boot.dev/lessons/f0126e90-414e-4a45-b6b6-758d59af012c
 // CH3 L3 https://www.boot.dev/lessons/3c66635a-cf05-471e-8ad8-ff3a80a6b177
+// CH4 L1 https://www.boot.dev/lessons/a5f72e6a-6af3-4568-9eb7-079a3809a46c
 
 import (
 	"context"
@@ -197,8 +198,6 @@ func handlerAddfeed(s *state, cmd command) error {
 		return fmt.Errorf("the user does not exist. %v", err)
 	}
 
-	// user_id, err := user.UserID
-
 	arg := database.CreateFeedParams{
 		ID: uuid.New(),
 		CreatedAt: time.Now(),
@@ -209,14 +208,31 @@ func handlerAddfeed(s *state, cmd command) error {
 	}
 
 	// Pass context.Background() to the query to create an empty Context argument.
-	newFeed, err := s.db.CreateFeed(context.Background(), arg)
+	feed, err := s.db.CreateFeed(context.Background(), arg)
 	if err != nil {
 		return fmt.Errorf("creating feed. %v", err)
 	}
 
 	fmt.Println("Created new feed.")
-	fmt.Println(newFeed)
+	fmt.Printf("* [%s] %s -- %s\n", user.Name, feed.Name, feed.Url)
+	// fmt.Println(feed)
 	
+	// CH4 L1
+	// It should now automatically create a feed follow record for the current user when they add a feed.
+	// Es copy paste de "handleFollow", potser fer-ne metode (TODO)
+	arg_follow := database.CreateFeedFollowParams{
+		ID: uuid.New(),
+		CreatedAt: time.Now(),
+		UpdatedAt: time.Now(),
+		UserID: user.ID,
+		FeedID: feed.ID,
+	}
+
+	_, err = s.db.CreateFeedFollow(context.Background(), arg_follow)
+	if err != nil {
+		return fmt.Errorf("creating feed_follows. %v", err)
+	}
+
 	return nil
 }
 
@@ -241,6 +257,70 @@ func handlerFeeds(s *state, cmd command) error {
 
 	return nil
 	
+}
+
+// CH4 L1
+// It takes a single url argument and creates a new feed follow record for the current user.
+// It should print the name of the feed and the current user once the record is created
+// (which the query we just made should support). You'll need a query to look up feeds by URL.
+func handlerFollow(s *state, cmd command) error {
+	if len(cmd.args) < 1 {
+		return fmt.Errorf("missing arguments <url>")
+	}
+
+	// Obtenim nom i url del feed dels arguments
+	url := cmd.args[0]
+	
+	// Obtenim el feed segons el que haguem obtingut del fitxer de configuracio
+	feed, err := s.db.GetFeedByUrl(context.Background(), url)
+	if err != nil {
+		return fmt.Errorf("the feed does not exist. %v", err)
+	}
+
+	// Obtenim l'usuari segons el que haguem obtingut del fitxer de configuracio
+	user, err := s.db.GetUser(context.Background(), s.cfg.CurrentUserName)
+	if err != nil {
+		return fmt.Errorf("the user does not exist. %v", err)
+	}
+
+	arg := database.CreateFeedFollowParams{
+		ID: uuid.New(),
+		CreatedAt: time.Now(),
+		UpdatedAt: time.Now(),
+		UserID: user.ID,
+		FeedID: feed.ID,
+	}
+
+	_, err = s.db.CreateFeedFollow(context.Background(), arg)
+	if err != nil {
+		return fmt.Errorf("creating feed_follows. %v", err)
+	}
+
+	fmt.Println("Created new follow:")
+	fmt.Printf("* [%s] %s\n", user.Name, feed.Name)
+	// fmt.Println(newFeedFollows)
+	
+	return nil
+}
+
+func handlerFollowing(s *state, cmd command) error {
+	// Obtenim l'usuari segons el que haguem obtingut del fitxer de configuracio
+	user, err := s.db.GetUser(context.Background(), s.cfg.CurrentUserName)
+	if err != nil {
+		return fmt.Errorf("the user does not exist. %v", err)
+	}
+
+	following_feeds, err := s.db.GetFeedFollowsForUser(context.Background(), user.ID)
+	if err != nil {
+		return fmt.Errorf("getting following feeds for [%s] -- %v", user.Name, err)
+	}
+	
+	fmt.Printf("User %s follows:\n", user.Name)
+	for _, feed := range following_feeds {
+		fmt.Printf("* %s\n", feed.Name)
+	}
+
+	return nil
 }
 
 // This will be the function signature of all command handlers.
@@ -278,6 +358,8 @@ func main() {
 	listOfCommands.register("agg", handlerAgg)				// CH3 L1
 	listOfCommands.register("addfeed", handlerAddfeed)		// CH3 L2
 	listOfCommands.register("feeds", handlerFeeds)			// CH3 L3
+	listOfCommands.register("follow", handlerFollow)		// CH4 L1
+	listOfCommands.register("following", handlerFollowing)	// CH4 L1
 
 	// CH1 L3 Use os.Args to get the command-line arguments passed in by the user.
 	if len(os.Args) < 2 {
