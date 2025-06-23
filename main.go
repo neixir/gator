@@ -10,6 +10,7 @@ package main
 // CH4 L1 https://www.boot.dev/lessons/a5f72e6a-6af3-4568-9eb7-079a3809a46c
 // CH4 L2 https://www.boot.dev/lessons/dbc877bf-a777-416e-ac07-f6ca9559f48c
 // CH4 L3 https://www.boot.dev/lessons/b1eb06af-f46e-40c1-a64f-836248122bb0
+// CH5 L1 https://www.boot.dev/lessons/096ad14b-a863-4dcf-861d-9085bfc64cf9
 
 import (
 	"context"
@@ -113,6 +114,7 @@ func handlerRegister(s *state, cmd command) error {
 		UpdatedAt: time.Now(),
 		Name: username,				// Use the provided name.
 	}
+
 	// Pass context.Background() to the query to create an empty Context argument.
 	newUser, err := s.db.CreateUser(context.Background(), arg)
 	if err != nil {
@@ -163,23 +165,30 @@ func handlerUsers(s *state, cmd command) error {
 	return nil
 }
 
-// CH3 L1
-// Later this will be our long-running aggregator service. For now, we'll just use it to fetch
-// a single feed and ensure our parsing works. It should fetch the feed found at
-// https://www.wagslane.dev/index.xml and print the entire struct to the console.
+// CH3 L1 + CH5 L1
 func handlerAgg(s *state, cmd command) error {
-	feed, err := rss.FetchFeed("https://www.wagslane.dev/index.xml")
+	if len(cmd.args) < 1 {
+		return fmt.Errorf("missing arguments <time_between_reqs>")
+	}
+
+	// time_between_reqs is a duration string, like 1s, 1m, 1h, etc.
+	// https://pkg.go.dev/time#ParseDuration
+	time_between_reqs := cmd.args[0]
+	timeBetweenRequests, err := time.ParseDuration(cmd.args[0])
 	if err != nil {
+		// time: unknown unit "x" in duration "10x"
 		return err
 	}
 
-	/*
-	fmt.Println(feed.Channel.Title)
-	for i, item := range feed.Channel.Item {
-		fmt.Printf("%02d %v\n", i, item.Title)
+	fmt.Printf("Collecting feeds every %s\n", time_between_reqs)
+	
+	// Use a time.Ticker to run your scrapeFeeds function once every time_between_reqs.
+	// I used a for loop to ensure that it runs immediately and then every time the ticker ticks:
+	ticker := time.NewTicker(timeBetweenRequests)
+	for ; ; <-ticker.C {
+		fmt.Println(" ... clock strikes ...")
+		scrapeFeeds(s)
 	}
-	*/
-	fmt.Println(feed)
 
 	return nil	
 }
@@ -355,6 +364,43 @@ func middlewareLoggedIn(handler func(s *state, cmd command, user database.User) 
 	}
 }
 
+// CH5 L1
+func scrapeFeeds(s *state) error {
+	// Get the next feed to fetch from the DB
+	nextFeed, err := s.db.GetNextFeedToFetch(context.Background())
+	if err != nil {
+		return fmt.Errorf("getting next feed to fetch. %v", err)
+	}
+	// fmt.Printf("- Nextfeed: %v / %v (last fetched %v)\n", nextFeed.Name, nextFeed.Url, nextFeed.LastFetchedAt)
+
+	// Mark it as fetched
+	arg := database.MarkFeedFetchedParams{
+		ID: nextFeed.ID,
+		LastFetchedAt: sql.NullTime{Time: time.Now(), Valid: true},
+	}
+
+	err = s.db.MarkFeedFetched(context.Background(), arg)
+	if err != nil {
+		return fmt.Errorf("marking feed as fetched. %v", err)
+	}
+
+	// Fetch the feed using the URL (we already wrote this function)
+	fmt.Printf("# Fetching %s", nextFeed.Name)
+	feed, err := rss.FetchFeed(nextFeed.Url)
+	if err != nil {
+		return err
+	}
+
+	// Iterate over the items in the feed and print their titles to the console.
+	fmt.Printf(": %d items.\n", len(feed.Channel.Item))
+	for _, item := range feed.Channel.Item {
+		fmt.Printf("* %s\n", item.Title)
+	}
+	fmt.Println("")
+
+	return nil
+}
+
 func main() {
 	status := state{}
 	
@@ -383,7 +429,7 @@ func main() {
 	listOfCommands.register("register", handlerRegister)
 	listOfCommands.register("reset", handlerReset)
 	listOfCommands.register("users", handlerUsers)
-	listOfCommands.register("agg", handlerAgg)									// CH3 L1
+	listOfCommands.register("agg", handlerAgg)									// CH3 L1 + CH5 L1
 	listOfCommands.register("addfeed", middlewareLoggedIn(handlerAddfeed))		// CH3 L2 + CH4 L2
 	listOfCommands.register("feeds", handlerFeeds)								// CH3 L3
 	listOfCommands.register("follow", middlewareLoggedIn(handlerFollow))		// CH4 L1 + CH4 L2
