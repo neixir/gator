@@ -11,12 +11,15 @@ package main
 // CH4 L2 https://www.boot.dev/lessons/dbc877bf-a777-416e-ac07-f6ca9559f48c
 // CH4 L3 https://www.boot.dev/lessons/b1eb06af-f46e-40c1-a64f-836248122bb0
 // CH5 L1 https://www.boot.dev/lessons/096ad14b-a863-4dcf-861d-9085bfc64cf9
+// CH5 L2 https://www.boot.dev/lessons/d391e27f-fbc9-4ca0-bc4c-d1a4f912bf16
 
 import (
 	"context"
 	"database/sql"
 	"fmt"
 	"os"
+	"strconv"
+	"strings"
 	"time"
 
 	"github.com/google/uuid"
@@ -225,7 +228,7 @@ func handlerAddfeed(s *state, cmd command, user database.User) error {
 	// CH4 L1
 	// It should now automatically create a feed follow record for the current user when they add a feed.
 	// Es copy paste de "handleFollow", potser fer-ne metode (TODO)
-	arg_follow := database.CreateFeedFollowParams{
+	argsFollow := database.CreateFeedFollowParams{
 		ID: uuid.New(),
 		CreatedAt: time.Now(),
 		UpdatedAt: time.Now(),
@@ -233,7 +236,7 @@ func handlerAddfeed(s *state, cmd command, user database.User) error {
 		FeedID: feed.ID,
 	}
 
-	_, err = s.db.CreateFeedFollow(context.Background(), arg_follow)
+	_, err = s.db.CreateFeedFollow(context.Background(), argsFollow)
 	if err != nil {
 		return fmt.Errorf("creating feed_follows. %v", err)
 	}
@@ -302,13 +305,13 @@ func handlerFollow(s *state, cmd command, user database.User) error {
 }
 
 func handlerFollowing(s *state, cmd command, user database.User) error {
-	following_feeds, err := s.db.GetFeedFollowsForUser(context.Background(), user.ID)
+	followingFeeds, err := s.db.GetFeedFollowsForUser(context.Background(), user.ID)
 	if err != nil {
 		return fmt.Errorf("getting following feeds for [%s] -- %v", user.Name, err)
 	}
 	
 	fmt.Printf("User %s follows:\n", user.Name)
-	for _, feed := range following_feeds {
+	for _, feed := range followingFeeds {
 		fmt.Printf("* %s\n", feed.Name)
 	}
 
@@ -345,6 +348,37 @@ func handlerUnfollow(s *state, cmd command, user database.User) error {
 	return nil
 }
 
+func handlerBrowse(s *state, cmd command, user database.User) error {
+	var limit int
+	var err error
+
+	if len(cmd.args) < 1 {
+		limit = 2
+	} else {
+		limit, err = strconv.Atoi(cmd.args[0])
+		if err != nil {
+			return err
+		}
+	}
+
+	arg := database.GetLimitedPostsForUserParams{
+		UserID: user.ID,
+		Limit: int32(limit),
+	}
+
+	newPosts, err := s.db.GetLimitedPostsForUser(context.Background(), arg)
+	if err != nil {
+		return fmt.Errorf("getting posts for [%s] -- %v", user.Name, err)
+	}
+	
+	fmt.Printf("%d new posts.\n", len(newPosts))
+	for _, post := range newPosts {
+		fmt.Printf("* %s\n", post.Title)
+	}
+
+	return nil
+}
+
 // This will be the function signature of all command handlers.
 // func handlerDefault(s *state, cmd command) error {
 // }
@@ -364,7 +398,7 @@ func middlewareLoggedIn(handler func(s *state, cmd command, user database.User) 
 	}
 }
 
-// CH5 L1
+// CH5 L1-L2
 func scrapeFeeds(s *state) error {
 	// Get the next feed to fetch from the DB
 	nextFeed, err := s.db.GetNextFeedToFetch(context.Background())
@@ -374,12 +408,12 @@ func scrapeFeeds(s *state) error {
 	// fmt.Printf("- Nextfeed: %v / %v (last fetched %v)\n", nextFeed.Name, nextFeed.Url, nextFeed.LastFetchedAt)
 
 	// Mark it as fetched
-	arg := database.MarkFeedFetchedParams{
+	argsMark := database.MarkFeedFetchedParams{
 		ID: nextFeed.ID,
 		LastFetchedAt: sql.NullTime{Time: time.Now(), Valid: true},
 	}
 
-	err = s.db.MarkFeedFetched(context.Background(), arg)
+	err = s.db.MarkFeedFetched(context.Background(), argsMark)
 	if err != nil {
 		return fmt.Errorf("marking feed as fetched. %v", err)
 	}
@@ -392,12 +426,45 @@ func scrapeFeeds(s *state) error {
 	}
 
 	// Iterate over the items in the feed and print their titles to the console.
+
+	// Update your scraper to save posts. Instead of printing out the titles of the posts, save them to the database!
 	fmt.Printf(": %d items.\n", len(feed.Channel.Item))
 	for _, item := range feed.Channel.Item {
-		fmt.Printf("* %s\n", item.Title)
+		fmt.Printf("* ADDING --> %s (%v)\n", item.Title, item.PubDate)
+
+		// converteix item.PubDate (string) a time.Time
+		// fmt.Printf("item.Pubdate: %s\n", item.PubDate)
+		//pubDate, err := time.Parse("Mon, 23 Jun 2025 07:01:00 +0000", item.PubDate)
+		pubDate, err := time.Parse(time.RFC1123Z, item.PubDate)
+		if err != nil {
+			return fmt.Errorf("failed to parse date: %w", err)
+		}
+
+		argsCreatePost := database.CreatePostParams{
+			ID: uuid.New(),
+			CreatedAt: time.Now(),
+			UpdatedAt: time.Now(),
+			Title: item.Title,
+			Url: "", // item.Url,
+			Description: sql.NullString{String: item.Description, Valid: true},
+			PublishedAt: sql.NullTime{Time: pubDate, Valid: true},
+			FeedID: uuid.NullUUID{UUID: nextFeed.ID, Valid: true},
+		}
+
+		_, err = s.db.CreatePost(context.Background(), argsCreatePost)
+		if err != nil {
+			// If you encounter an error where the post with that URL already exists, just ignore it. That will happen a lot.
+			// If it's a different error, you should probably log it.
+			// pq: duplicate key value violates unique constraint "posts_url_key"
+			if !strings.Contains(err.Error(), "unique constraint \"posts_url_key\"") {
+				//return fmt.Errorf("creating post -- %v", err)
+				fmt.Println("Error creating post -- %v", err)
+			}
+		}
+
 	}
 	fmt.Println("")
-
+	
 	return nil
 }
 
@@ -435,6 +502,7 @@ func main() {
 	listOfCommands.register("follow", middlewareLoggedIn(handlerFollow))		// CH4 L1 + CH4 L2
 	listOfCommands.register("following", middlewareLoggedIn(handlerFollowing))	// CH4 L1 + CH4 L2
 	listOfCommands.register("unfollow", middlewareLoggedIn(handlerUnfollow))	// CH4 L3
+	listOfCommands.register("browse", middlewareLoggedIn(handlerBrowse))		// CH5 L2
 
 	// CH1 L3 Use os.Args to get the command-line arguments passed in by the user.
 	if len(os.Args) < 2 {
