@@ -27,9 +27,9 @@ import (
 	"github.com/neixir/gator/internal/config"
 	"github.com/neixir/gator/internal/database"
 	"github.com/neixir/gator/internal/rss"
-)
 
-import _ "github.com/lib/pq"
+	_ "github.com/lib/pq"
+)
 
 type state struct {
 	db  *database.Queries
@@ -64,7 +64,7 @@ func (c *commands) run(s *state, cmd command) error {
 
 		return nil
 	}
-	
+
 	return fmt.Errorf("command not found")
 
 }
@@ -112,10 +112,10 @@ func handlerRegister(s *state, cmd command) error {
 	// Create a new user in the database.
 	// It should have access to the CreateUser query through the state -> db struct.
 	arg := database.CreateUserParams{
-		ID: uuid.New(),				// Use the uuid.New() function to generate a new UUID for the user.
-		CreatedAt: time.Now(),		// created_at and updated_at should be the current time.
+		ID:        uuid.New(), // Use the uuid.New() function to generate a new UUID for the user.
+		CreatedAt: time.Now(), // created_at and updated_at should be the current time.
 		UpdatedAt: time.Now(),
-		Name: username,				// Use the provided name.
+		Name:      username, // Use the provided name.
 	}
 
 	// Pass context.Background() to the query to create an empty Context argument.
@@ -131,11 +131,11 @@ func handlerRegister(s *state, cmd command) error {
 	if err != nil {
 		return fmt.Errorf("setting user. %v", err)
 	}
-	
+
 	// Print a message that the user was created, and log the user's data to the console for your own debugging.
 	fmt.Printf("Created new user %s.\n", username)
 	fmt.Println(newUser)
-	
+
 	return nil
 }
 
@@ -145,7 +145,7 @@ func handlerReset(s *state, cmd command) error {
 	if err != nil {
 		return fmt.Errorf("resetting users table. %v", err)
 	}
-	
+
 	fmt.Println("Users table has been reset.")
 	return nil
 }
@@ -156,7 +156,7 @@ func handlerUsers(s *state, cmd command) error {
 	if err != nil {
 		return fmt.Errorf("getting user list. %v", err)
 	}
-	
+
 	for _, user := range users {
 		username := user.Name
 		if s.cfg.CurrentUserName == username {
@@ -184,7 +184,7 @@ func handlerAgg(s *state, cmd command) error {
 	}
 
 	fmt.Printf("Collecting feeds every %s\n", time_between_reqs)
-	
+
 	// Use a time.Ticker to run your scrapeFeeds function once every time_between_reqs.
 	// I used a for loop to ensure that it runs immediately and then every time the ticker ticks:
 	ticker := time.NewTicker(timeBetweenRequests)
@@ -193,10 +193,10 @@ func handlerAgg(s *state, cmd command) error {
 		scrapeFeeds(s)
 	}
 
-	return nil	
+	return nil
 }
 
-//CH3 L2
+// CH3 L2
 func handlerAddfeed(s *state, cmd command, user database.User) error {
 	if len(cmd.args) < 2 {
 		return fmt.Errorf("missing arguments <name> <url>")
@@ -205,14 +205,14 @@ func handlerAddfeed(s *state, cmd command, user database.User) error {
 	// Obtenim nom i url del feed dels arguments
 	name := cmd.args[0]
 	url := cmd.args[1]
-	
+
 	arg := database.CreateFeedParams{
-		ID: uuid.New(),
+		ID:        uuid.New(),
 		CreatedAt: time.Now(),
 		UpdatedAt: time.Now(),
-		Name: name,
-		Url: url,
-		UserID: user.ID,
+		Name:      name,
+		Url:       url,
+		UserID:    user.ID,
 	}
 
 	// Pass context.Background() to the query to create an empty Context argument.
@@ -224,16 +224,16 @@ func handlerAddfeed(s *state, cmd command, user database.User) error {
 	fmt.Println("Created new feed.")
 	fmt.Printf("* [%s] %s -- %s\n", user.Name, feed.Name, feed.Url)
 	// fmt.Println(feed)
-	
+
 	// CH4 L1
 	// It should now automatically create a feed follow record for the current user when they add a feed.
 	// Es copy paste de "handleFollow", potser fer-ne metode (TODO)
 	argsFollow := database.CreateFeedFollowParams{
-		ID: uuid.New(),
+		ID:        uuid.New(),
 		CreatedAt: time.Now(),
 		UpdatedAt: time.Now(),
-		UserID: user.ID,
-		FeedID: feed.ID,
+		UserID:    user.ID,
+		FeedID:    feed.ID,
 	}
 
 	_, err = s.db.CreateFeedFollow(context.Background(), argsFollow)
@@ -249,7 +249,7 @@ func handlerFeeds(s *state, cmd command) error {
 	if err != nil {
 		return fmt.Errorf("getting feed list. %v", err)
 	}
-	
+
 	for _, feed := range feeds {
 		// Obtenim User segons id
 		// TODO Pper anar be podriem crear un map fora d'aquest for
@@ -264,7 +264,7 @@ func handlerFeeds(s *state, cmd command) error {
 	}
 
 	return nil
-	
+
 }
 
 // CH4 L1
@@ -278,7 +278,7 @@ func handlerFollow(s *state, cmd command, user database.User) error {
 
 	// Obtenim nom i url del feed dels arguments
 	url := cmd.args[0]
-	
+
 	// Obtenim el feed segons el que haguem obtingut del fitxer de configuracio
 	feed, err := s.db.GetFeedByUrl(context.Background(), url)
 	if err != nil {
@@ -286,11 +286,11 @@ func handlerFollow(s *state, cmd command, user database.User) error {
 	}
 
 	arg := database.CreateFeedFollowParams{
-		ID: uuid.New(),
+		ID:        uuid.New(),
 		CreatedAt: time.Now(),
 		UpdatedAt: time.Now(),
-		UserID: user.ID,
-		FeedID: feed.ID,
+		UserID:    user.ID,
+		FeedID:    feed.ID,
 	}
 
 	_, err = s.db.CreateFeedFollow(context.Background(), arg)
@@ -300,7 +300,7 @@ func handlerFollow(s *state, cmd command, user database.User) error {
 
 	fmt.Println("Created new follow:")
 	fmt.Printf("* [%s] %s\n", user.Name, feed.Name)
-	
+
 	return nil
 }
 
@@ -309,7 +309,7 @@ func handlerFollowing(s *state, cmd command, user database.User) error {
 	if err != nil {
 		return fmt.Errorf("getting following feeds for [%s] -- %v", user.Name, err)
 	}
-	
+
 	fmt.Printf("User %s follows:\n", user.Name)
 	for _, feed := range followingFeeds {
 		fmt.Printf("* %s\n", feed.Name)
@@ -325,7 +325,7 @@ func handlerUnfollow(s *state, cmd command, user database.User) error {
 
 	// Obtenim nom i url del feed dels arguments
 	url := cmd.args[0]
-	
+
 	// Obtenim el feed
 	feed, err := s.db.GetFeedByUrl(context.Background(), url)
 	if err != nil {
@@ -363,14 +363,14 @@ func handlerBrowse(s *state, cmd command, user database.User) error {
 
 	arg := database.GetLimitedPostsForUserParams{
 		UserID: user.ID,
-		Limit: int32(limit),
+		Limit:  int32(limit),
 	}
 
 	newPosts, err := s.db.GetLimitedPostsForUser(context.Background(), arg)
 	if err != nil {
 		return fmt.Errorf("getting posts for [%s] -- %v", user.Name, err)
 	}
-	
+
 	fmt.Printf("%d new posts.\n", len(newPosts))
 	for _, post := range newPosts {
 		fmt.Printf("* %s\n", post.Title)
@@ -409,7 +409,7 @@ func scrapeFeeds(s *state) error {
 
 	// Mark it as fetched
 	argsMark := database.MarkFeedFetchedParams{
-		ID: nextFeed.ID,
+		ID:            nextFeed.ID,
 		LastFetchedAt: sql.NullTime{Time: time.Now(), Valid: true},
 	}
 
@@ -441,14 +441,14 @@ func scrapeFeeds(s *state) error {
 		}
 
 		argsCreatePost := database.CreatePostParams{
-			ID: uuid.New(),
-			CreatedAt: time.Now(),
-			UpdatedAt: time.Now(),
-			Title: item.Title,
-			Url: "", // item.Url,
+			ID:          uuid.New(),
+			CreatedAt:   time.Now(),
+			UpdatedAt:   time.Now(),
+			Title:       item.Title,
+			Url:         item.Link,
 			Description: sql.NullString{String: item.Description, Valid: true},
 			PublishedAt: sql.NullTime{Time: pubDate, Valid: true},
-			FeedID: uuid.NullUUID{UUID: nextFeed.ID, Valid: true},
+			FeedID:      uuid.NullUUID{UUID: nextFeed.ID, Valid: true},
 		}
 
 		_, err = s.db.CreatePost(context.Background(), argsCreatePost)
@@ -464,15 +464,15 @@ func scrapeFeeds(s *state) error {
 
 	}
 	fmt.Println("")
-	
+
 	return nil
 }
 
 func main() {
 	status := state{}
-	
+
 	// CH1 L2-3
-    // Read the config file.
+	// Read the config file.
 	cfg, err := config.Read()
 	if err != nil {
 		fmt.Println("Error reading config file: %v", err)
@@ -484,7 +484,7 @@ func main() {
 	dbURL := status.cfg.DbUrl
 	db, err := sql.Open("postgres", dbURL)
 	dbQueries := database.New(db)
-	status.db = dbQueries 
+	status.db = dbQueries
 
 	// CH1 L3 Create a new instance of the commands struct with an initialized map of handler functions.
 	listOfCommands := commands{
@@ -492,29 +492,29 @@ func main() {
 	}
 
 	//
-	listOfCommands.register("login", handlerLogin)								// CH1 L3
+	listOfCommands.register("login", handlerLogin) // CH1 L3
 	listOfCommands.register("register", handlerRegister)
 	listOfCommands.register("reset", handlerReset)
 	listOfCommands.register("users", handlerUsers)
-	listOfCommands.register("agg", handlerAgg)									// CH3 L1 + CH5 L1
-	listOfCommands.register("addfeed", middlewareLoggedIn(handlerAddfeed))		// CH3 L2 + CH4 L2
-	listOfCommands.register("feeds", handlerFeeds)								// CH3 L3
-	listOfCommands.register("follow", middlewareLoggedIn(handlerFollow))		// CH4 L1 + CH4 L2
-	listOfCommands.register("following", middlewareLoggedIn(handlerFollowing))	// CH4 L1 + CH4 L2
-	listOfCommands.register("unfollow", middlewareLoggedIn(handlerUnfollow))	// CH4 L3
-	listOfCommands.register("browse", middlewareLoggedIn(handlerBrowse))		// CH5 L2
+	listOfCommands.register("agg", handlerAgg)                                 // CH3 L1 + CH5 L1
+	listOfCommands.register("addfeed", middlewareLoggedIn(handlerAddfeed))     // CH3 L2 + CH4 L2
+	listOfCommands.register("feeds", handlerFeeds)                             // CH3 L3
+	listOfCommands.register("follow", middlewareLoggedIn(handlerFollow))       // CH4 L1 + CH4 L2
+	listOfCommands.register("following", middlewareLoggedIn(handlerFollowing)) // CH4 L1 + CH4 L2
+	listOfCommands.register("unfollow", middlewareLoggedIn(handlerUnfollow))   // CH4 L3
+	listOfCommands.register("browse", middlewareLoggedIn(handlerBrowse))       // CH5 L2
 
 	// CH1 L3 Use os.Args to get the command-line arguments passed in by the user.
 	if len(os.Args) < 2 {
 		fmt.Println("Please provide a command.")
 		os.Exit(1)
 	}
-	
+
 	cmd := command{
 		name: os.Args[1],
 		args: os.Args[2:],
 	}
-	
+
 	// Run the command
 	err = listOfCommands.run(&status, cmd)
 	if err != nil {
